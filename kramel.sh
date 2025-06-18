@@ -53,6 +53,9 @@ export COMPILER=clang
 # Module building support. Set 1 to enable. | Set 0 to disable.
 export MODULE=0
 
+# Headers building support, Set true to enable | set false to disale
+export HEADERS=true
+
 # Requirements
 if [ "${ci}" != 1 ]; then
     if ! hash dialog make curl wget unzip find 2>/dev/null; then
@@ -246,6 +249,64 @@ mod() {
     echo -e "\n\e[1;32m[✓] Built Modules! \e[0m"
 }
 
+# A function to build kernel headers
+hdr() {
+    if [[ "${TGI}" != "0" ]]; then
+        tg "*Building Kernel Headers!*"
+    fi
+    rgn
+    echo -e "\n\e[1;94m[*] Building Kernel Headers \e[0m"
+
+    local outdir="${KDIR}/out/headers"
+    local ver codename pkgname
+    local arch="$(printf "%s\n" "${MAKE[@]}" | awk -F= '/^ARCH=/{print $2}')"
+    mkdir -p "${outdir}/arch/"
+
+    # Prepare headers
+    make "${MAKE[@]}" O=out prepare
+    make "${MAKE[@]}" O=out modules_prepare
+
+    # Export headers
+    cp -r include scripts Makefile "${outdir}/"
+    cp -r arch/${arch} "${outdir}/arch/"
+    ln -sf "${outdir}/arch/${arch}" "${outdir}/arch/aarch64"
+
+    # Merge out/ includes
+    rsync -a out/include/ "${outdir}/include/"
+    rsync -a out/scripts/ "${outdir}/scripts/"
+    rsync -a out/arch/${arch}/ "${outdir}/arch/${arch}/"
+
+    touch "${outdir}/Module.symvers"
+    [[ -f out/Module.symvers ]] && cp out/Module.symvers "${outdir}/"
+
+    # Clean unnecessary files
+    find "${outdir}" -type f \( -name '*.c' -o -name '*.o' -o -name '*.cmd' -o -name '*.d' \) -delete
+
+    # Package as .deb
+    ver="$(grep -E '^(VERSION|PATCHLEVEL|SUBLEVEL)' Makefile | awk '{print $3}' | paste -sd.)"
+    codename="${CODENAME}"
+    pkgname="kernel-headers-${ver}-${codename}.deb"
+
+    local pkgdir="deb-pkg"
+    mkdir -p "${pkgdir}/DEBIAN"
+    mkdir -p "${pkgdir}/usr/src/kernel-headers-${ver}-${codename}"
+
+    cp -r "${outdir}/." "${pkgdir}/usr/src/kernel-headers-${ver}-${codename}/"
+
+    cat <<EOF > "${pkgdir}/DEBIAN/control"
+Package: kernel-headers
+Version: ${ver}
+Architecture: ${arch}
+Maintainer: ${BUILDER}
+Description: Kernel headers for ${ver} (${codename})
+EOF
+
+    fakeroot dpkg-deb --build "${pkgdir}" "${pkgname}"
+    #rm -rf "${pkgdir}" "${outdir}"
+
+    echo -e "\n\e[1;32m[✓] Kernel Headers built: ${pkgname} \e[0m"
+}
+
 # A function to build an AnyKernel3 zip.
 mkzip() {
     if [[ "${TGI}" != "0" ]]; then
@@ -258,6 +319,10 @@ mkzip() {
     echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
     if [[ "${TGI}" != "0" ]]; then
         tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
+    fi
+    if [[ "${HEADERS}" == "true" ]]; then
+        cd ../ || exit 1
+        tgs kernel-headers-*.deb "*#${kver} ${KBUILD_COMPILER_STRING}*"
     fi
     if [[ "${MODULE}" = "1" ]]; then
         cd ../modules || exit 1
@@ -291,7 +356,7 @@ helpmenu() {
 usage: kver=<version number> zipn=<zip name> $0 <arg>
 example: $0 --kver=69 --zipn=Kernel-Beta mcfg
 example: $0 --kver=420 --zipn=Kernel-Beta mcfg img
-example: $0 --kver=69420 --zipn=Kernel-Beta mcfg img mkzip
+example: $0 --kver=69420 --zipn=Kernel-Beta mcfg img hdr mkzip
 example: $0 --kver=1 --zipn=Kernel-Beta --obj=drivers/android/binder.o
 example: $0 --kver=2 --zipn=Kernel-Beta --obj=kernel/sched/
 example: $0 --kver=3 --zipn=Kernel-Beta --upr=r16 --modn=Beta-modules
@@ -299,6 +364,7 @@ example: $0 --kver=3 --zipn=Kernel-Beta --upr=r16 --modn=Beta-modules
 	 img    Builds Kernel
 	 dtb    Builds dtb(o).img
 	 mod    Builds out-of-tree modules
+	 hdr    Builds kernel headers
 	 mkzip  Builds anykernel3 zip
 	 --obj  Builds specific driver/subsystem
 	 rgn    Regenerates defconfig
@@ -320,13 +386,14 @@ ndialog() {
     OPTIONS=(1 "Build kernel"
         2 "Build DTBs"
         3 "Build modules"
-        4 "Open menuconfig"
-        5 "Regenerate defconfig"
-        6 "Uprev localversion"
-        7 "Build AnyKernel3 zip"
-        8 "Build a specific object"
-        9 "Clean"
-        10 "Exit"
+	4 "Build kernel headers"
+        5 "Open menuconfig"
+        6 "Regenerate defconfig"
+        7 "Uprev localversion"
+        8 "Build AnyKernel3 zip"
+        9 "Build a specific object"
+        10 "Clean"
+        11 "Exit"
     )
     CHOICE=$(dialog --clear \
         --backtitle "$BACKTITLE" \
@@ -371,11 +438,11 @@ ndialog() {
         else
             clear
             ndialog
-        fi
-        ;;
+	fi
+	;;
     4)
         clear
-        mcfg
+        hdr
         echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
@@ -387,7 +454,7 @@ ndialog() {
         ;;
     5)
         clear
-        rgn
+        mcfg
         echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
@@ -398,6 +465,18 @@ ndialog() {
         fi
         ;;
     6)
+        clear
+        rgn
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
+        read -r a1
+        if [ "$a1" == "0" ]; then
+            exit 0
+        else
+            clear
+            ndialog
+        fi
+        ;;
+    7)
         dialog --inputbox --stdout "Enter version number: " 15 50 | tee .t
         ver=$(cat .t)
         clear
@@ -412,7 +491,7 @@ ndialog() {
             ndialog
         fi
         ;;
-    7)
+    8)
         mkzip
         echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
@@ -423,7 +502,7 @@ ndialog() {
             ndialog
         fi
         ;;
-    8)
+    9)
         dialog --inputbox --stdout "Enter object path: " 15 50 | tee .f
         ob=$(cat .f)
         if [ -z "$ob" ]; then
@@ -441,7 +520,7 @@ ndialog() {
             ndialog
         fi
         ;;
-    9)
+    10)
         clear
         clean
         img
@@ -454,7 +533,7 @@ ndialog() {
             ndialog
         fi
         ;;
-    10)
+    11)
         echo -e "\n\e[1m Exiting YAKB...\e[0m"
         sleep 3
         exit 0
@@ -484,6 +563,9 @@ for arg in "$@"; do
     "mod")
         mod
         ;;
+    "hdr")
+	hdr
+	;;
     "mkzip")
         mkzip
         ;;
