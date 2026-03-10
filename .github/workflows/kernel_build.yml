@@ -108,9 +108,37 @@ jobs:
         run: |
           sed -i "s|CHATID=[^/ ]*|CHATID=${{ secrets.TELEGRAM_CHAT_ID }}|" kramel.sh
 
+      - name: Extract clang version
+        id: extract_clang
+        run: |
+          CLANG_VERSION=$(grep -oP 'clang-r\K[0-9]+(?=\.tar\.gz)' kramel.sh | head -1)
+          if [ -z "$CLANG_VERSION" ]; then
+            # Fallback: extract from the URL pattern
+            CLANG_VERSION=$(grep -oP 'clang-r[0-9]+c' kramel.sh | head -1 | sed 's/clang-r//')
+          fi
+          echo "version=$CLANG_VERSION" >> $GITHUB_OUTPUT
+          echo "Clang version extracted: $CLANG_VERSION"
+
+      - name: Restore clang cache
+        id: cache-clang-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: clang
+          key: clang-${{ steps.extract_clang.outputs.version }}-${{ hashFiles('kramel.sh') }}
+          restore-keys: |
+            clang-${{ steps.extract_clang.outputs.version }}-
+            clang-
+
       - name: Build kernel
         run: |
           eval "${{ github.event.inputs.run_command }}"
+
+      - name: Save clang cache
+        if: steps.cache-clang-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: clang
+          key: clang-${{ steps.extract_clang.outputs.version }}-${{ hashFiles('kramel.sh') }}
 
       - name: Parse Release Information
         if: ${{ github.event.inputs.create_release == 'true' }}
