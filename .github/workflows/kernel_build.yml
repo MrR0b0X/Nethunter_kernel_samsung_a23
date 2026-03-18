@@ -133,8 +133,18 @@ jobs:
         run: |
           eval "${{ github.event.inputs.run_command }}"
 
+      - name: Verify clang installation
+        if: always() && steps.cache-clang-restore.outputs.cache-hit != 'true'
+        id: verify-clang
+        run: |
+          if [ -d "clang" ] && [ -x "clang/bin/clang" ]; then
+            echo "clang_valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "clang_valid=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Save clang cache
-        if: steps.cache-clang-restore.outputs.cache-hit != 'true'
+        if: always() && steps.verify-clang.outputs.clang_valid == 'true'
         uses: actions/cache/save@v4
         with:
           path: clang
