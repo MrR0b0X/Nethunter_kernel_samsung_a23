@@ -123,7 +123,10 @@ jobs:
         id: cache-clang-restore
         uses: actions/cache/restore@v4
         with:
-          path: clang
+          path: |
+            clang
+            arm64
+            arm
           key: clang-${{ steps.extract_clang.outputs.version }}-${{ hashFiles('kramel.sh') }}
           restore-keys: |
             clang-${{ steps.extract_clang.outputs.version }}-
@@ -133,21 +136,46 @@ jobs:
         run: |
           eval "${{ github.event.inputs.run_command }}"
 
-      - name: Verify clang installation
+      - name: Verify toolchains
         if: always() && steps.cache-clang-restore.outputs.cache-hit != 'true'
-        id: verify-clang
+        id: verify-toolchains
         run: |
+          # Verify clang
+          clang_ok=false
           if [ -d "clang" ] && [ -x "clang/bin/clang" ]; then
-            echo "clang_valid=true" >> $GITHUB_OUTPUT
+            clang_ok=true
           else
-            echo "clang_valid=false" >> $GITHUB_OUTPUT
+            echo "Clang not found or not executable"
+          fi
+          # Verify aarch64 GCC
+          gcc64_ok=false
+          if [ -x "arm64/bin/aarch64-linux-android-gcc" ]; then
+            gcc64_ok=true
+          else
+            echo "arm64 GCC not found or not executable"
+          fi
+          # Verify arm GCC
+          gcc32_ok=false
+          if [ -x "arm/bin/arm-linux-androideabi-gcc" ]; then
+            gcc32_ok=true
+          else
+            echo "arm GCC not found or not executable"
           fi
 
-      - name: Save clang cache
-        if: always() && steps.verify-clang.outputs.clang_valid == 'true'
+          if [ "$clang_ok" = "true" ] && [ "$gcc64_ok" = "true" ] && [ "$gcc32_ok" = "true" ]; then
+            echo "valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "valid=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Save toolchains cache
+        if: always() && steps.verify-toolchains.outputs.valid == 'true'
         uses: actions/cache/save@v4
         with:
-          path: clang
+          path: |
+            clang
+            arm64
+            arm
           key: clang-${{ steps.extract_clang.outputs.version }}-${{ hashFiles('kramel.sh') }}
 
       - name: Parse Release Information
