@@ -29,7 +29,7 @@ export CODENAME="a23"
 export BUILDER="Robin"
 
 # Kernel repository URL.
-export REPO_URL="https://github.com/MrRob0-X/Nethunter_kernel_samsung_a23"
+export REPO_URL="https://github.com/MrR0b0X/Nethunter_kernel_samsung_a23"
 
 # Commit hash of HEAD.
 COMMIT_HASH=$(git rev-parse --short HEAD)
@@ -96,12 +96,12 @@ fi
 
 if [[ "${MODULE}" = 1 ]]; then
     if [ ! -d "${KDIR}"/modules ]; then
-        git clone --depth=1 https://github.com/MrRob0-X/nethunter-modules "${KDIR}"/modules
+        git clone --depth=1 https://github.com/MrR0b0X/nethunter-modules "${KDIR}"/modules
     fi
 fi
 
 if [ ! -d "${KDIR}/anykernel3/" ]; then
-    git clone --depth=1 https://github.com/MrRob0-X/anykernel3 -b a23 anykernel3
+    git clone --depth=1 https://github.com/MrR0b0X/anykernel3 -b a23 anykernel3
 fi
 
 if [ "${ci}" != 1 ]; then
@@ -275,14 +275,14 @@ obj() {
 
 # A function to uprev localversion in defconfig.
 upr() {
-    echo -e "\n\e[1;93m[*] Bumping localversion to -MrRobin_Ho_Od-${1}! \e[0m"
-    "${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/$CONFIG --set-str CONFIG_LOCALVERSION "-MrRobin_Ho_Od-${1}"
+    echo -e "\n\e[1;93m[*] Bumping localversion to -MrR0b0X-${1}! \e[0m"
+    "${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/$CONFIG --set-str CONFIG_LOCALVERSION "-MrR0b0X-${1}"
     rgn
     if [ "${ci}" != 1 ]; then
         git add arch/arm64/configs/$CONFIG
         git commit -S -s -m "nethunter_defconfig: Bump to \`${1}\`"
     fi
-    echo -e "\n\e[1;32m[✓] Bumped localversion to -MrRobin_Ho_Od-${1}! \e[0m"
+    echo -e "\n\e[1;32m[✓] Bumped localversion to -MrR0b0X-${1}! \e[0m"
 }
 
 # A function to showcase the options provided for args-based usage.
