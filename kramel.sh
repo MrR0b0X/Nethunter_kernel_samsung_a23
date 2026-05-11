@@ -50,11 +50,15 @@ export PROCS
 # Compiler to use for builds.
 export COMPILER=clang
 
-# Module building support. Set 1 to enable. | Set 0 to disable.
-export MODULE=0
-
-# Headers building support, Set true to enable | set false to disale
-export HEADERS=true
+# Flag: set to 1 if "mod | hdr " is passed as an argument.
+MODULE=0 HEADERS=0
+for _a in "$@"; do
+    if [[ "$_a" == "mod" || "$_a" == "hdr" ]]; then
+        MODULE=1 HEADERS=1
+        break
+    fi
+done
+export MODULE HEADERS
 
 # Requirements
 if [ "${ci}" != 1 ]; then
@@ -320,7 +324,7 @@ mkzip() {
     if [[ "${TGI}" != "0" ]]; then
         tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
     fi
-    if [[ "${HEADERS}" == "true" ]]; then
+    if [[ "${HEADERS}" == "1" ]]; then
         cd ../ || exit 1
         tgs kernel-headers-*.deb "*#${kver} ${KBUILD_COMPILER_STRING}*"
     fi
